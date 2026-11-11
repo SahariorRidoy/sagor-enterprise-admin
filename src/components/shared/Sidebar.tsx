@@ -208,6 +208,11 @@ export function AppSidebar({
           label: "Courier Dashboard",
           href: "/admin/courier/dashboard",
         },
+        {
+          icon: Settings as IconRenderer,
+          label: "Courier Settings",
+          href: "/admin/courier/settings",
+        },
         // {
         //   icon: Package as IconRenderer,
         //   label: "Create Order",

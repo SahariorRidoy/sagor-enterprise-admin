@@ -60,6 +60,16 @@ export interface ISteadfastBulkOrderResponse {
 }
 
 // Standard API response wrapper
+export interface ICourierCredentialStatus {
+  provider: "steadfast";
+  configured: boolean;
+  source: "database" | "env" | "none";
+  apiKey: string;
+  secretKey: string;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -133,6 +143,27 @@ export const steadfastApi = baseApi.injectEndpoints({
     }),
 
     // 🔄 Get All Return Requests
+    // 🔑 Credentials
+    getCourierCredentials: builder.query<ICourierCredentialStatus, void>({
+      query: () => "/steadfast/credentials",
+      transformResponse: (response: ApiResponse<ICourierCredentialStatus>) => response.data,
+    }),
+    saveCourierCredentials: builder.mutation<
+      ICourierCredentialStatus,
+      { apiKey: string; secretKey: string; skipVerify?: boolean }
+    >({
+      query: (body) => ({ url: "/steadfast/credentials", method: "PUT", body }),
+      transformResponse: (response: ApiResponse<ICourierCredentialStatus>) => response.data,
+    }),
+    deleteCourierCredentials: builder.mutation<ICourierCredentialStatus, void>({
+      query: () => ({ url: "/steadfast/credentials", method: "DELETE" }),
+      transformResponse: (response: ApiResponse<ICourierCredentialStatus>) => response.data,
+    }),
+    testCourierCredentials: builder.mutation<{ ok: boolean; source: string; balance: number | null }, void>({
+      query: () => "/steadfast/credentials/test",
+      transformResponse: (response: ApiResponse<{ ok: boolean; source: string; balance: number | null }>) => response.data,
+    }),
+
     getReturnRequests: builder.query<ISteadfastReturnRequest[], void>({
       query: () => "/steadfast/return-requests",
       transformResponse: (response: ApiResponse<ISteadfastReturnRequest[]>) => response.data,
@@ -153,6 +184,10 @@ export const {
   useCreateReturnRequestMutation,
   useGetReturnRequestQuery,
   useGetReturnRequestsQuery,
+  useGetCourierCredentialsQuery,
+  useSaveCourierCredentialsMutation,
+  useDeleteCourierCredentialsMutation,
+  useTestCourierCredentialsMutation,
   
   // Lazy queries for on-demand fetching
   useLazyGetStatusByInvoiceQuery,

@@ -27,31 +27,63 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        let res: Response;
         try {
-          const res = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_API}/auth/login`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email: credentials.email,
-                password: credentials.password,
-              }),
-            }
-          );
-
-          const json: any = await res.json();
-          
-          if (!res.ok) {
-            // Throw error with backend message for pending/blocked users
-            throw new Error(json?.message || "Login failed");
+          res = await fetch(`${process.env.NEXT_PUBLIC_BASE_API}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+            signal: AbortSignal.timeout(15000),
+          });
+        } catch (error: any) {
+          if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+            throw new Error(
+              "The server took too long to respond. Please try again in a moment."
+            );
           }
-          
+          throw new Error(
+            "Unable to reach the server. Please check your internet connection or try again later."
+          );
+        }
+
+        let json: any = null;
+        try {
+          json = await res.json();
+        } catch {
+          // Non-JSON response (e.g. HTML error page from a proxy / crashed server)
+        }
+
+        {
+          if (!res.ok) {
+            const backendMsg = json?.message;
+            if (backendMsg) throw new Error(backendMsg);
+            if (res.status === 401 || res.status === 400)
+              throw new Error("Invalid email or password.");
+            if (res.status === 403)
+              throw new Error("Your account is not allowed to log in.");
+            if (res.status === 404)
+              throw new Error("Login service not found (404). Please contact support.");
+            if (res.status === 429)
+              throw new Error("Too many login attempts. Please wait and try again.");
+            if (res.status >= 500)
+              throw new Error(
+                `Server error (${res.status}). The server is having trouble, please try again later.`
+              );
+            throw new Error(`Login failed (status ${res.status}).`);
+          }
+          if (!json) {
+            throw new Error("Received an invalid response from the server.");
+          }
+
           const data = json?.data ?? json?.result ?? json;
           const u = data?.user ?? data;
           const accessToken = data?.accessToken ?? json?.token ?? json?.accessToken ?? null;
 
-          if (!u?._id && !u?.id) return null;
+          if (!u?._id && !u?.id)
+            throw new Error("Login failed: user data missing in server response.");
 
           return {
             id: u._id ?? u.id,
@@ -62,8 +94,6 @@ export const authOptions: NextAuthOptions = {
             walletPoint: u.walletPoint ?? 0,
             accessToken,
           } as any;
-        } catch (error: any) {
-          throw new Error(error.message || "Authentication failed");
         }
       },
     }),

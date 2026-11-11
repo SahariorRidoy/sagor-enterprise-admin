@@ -10,6 +10,7 @@ import { useAuthHandlers } from "@/lib/authActions";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "../ui/button";
 import Image from "next/image";
+import toast from "react-hot-toast";
 
 type AuthFormProps = {
   type: "login" | "register";
@@ -43,6 +44,7 @@ export default function AuthForm({ type }: AuthFormProps) {
       // Decode the URL-encoded error message
       const decodedError = decodeURIComponent(errorParam);
       setError(decodedError);
+      toast.error(decodedError, { id: "auth-error" });
     }
   }, [searchParams]);
 
@@ -59,17 +61,35 @@ export default function AuthForm({ type }: AuthFormProps) {
           redirect: false,
         });
         
-        if (result?.error) {
-          setError(result.error);
+        if (!result) {
+          throw new Error("No response from the authentication service. Please try again.");
+        }
+
+        if (result.error) {
+          const msg =
+            result.error === "CredentialsSignin"
+              ? "Invalid email or password."
+              : result.error;
+          setError(msg);
+          toast.error(msg, { id: "auth-error" });
           return;
         }
-        
-        if (result?.ok) {
+
+        if (result.ok) {
+          toast.success("Login successful", { id: "auth-success" });
           router.push("/");
         }
       }
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      const raw = err?.message ?? "";
+      const msg =
+        err?.name === "SyntaxError" || /JSON|Unexpected token/i.test(raw)
+          ? "The server returned an unexpected response (it may be down or restarting). Please try again shortly."
+          : err?.name === "TypeError" || /fetch/i.test(raw)
+          ? "Network error: unable to reach the server. Check your connection and try again."
+          : raw || "Something went wrong";
+      setError(msg);
+      toast.error(msg, { id: "auth-error" });
     } finally {
       setIsLoading(false);
     }
